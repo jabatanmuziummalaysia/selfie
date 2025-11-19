@@ -32,39 +32,38 @@
       opacity: 0.8;
     }
 
-    .camera-wrapper {
-      position: relative;
+    .preview-wrapper {
+      margin-top: 12px;
+      width: 100%;
+      max-width: 420px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .preview-wrapper img {
+      width: 100%;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+      background: #000;
+    }
+
+    .placeholder-box {
+      margin-top: 12px;
       width: 100%;
       max-width: 420px;
       aspect-ratio: 3 / 4;
       border-radius: 16px;
-      overflow: hidden;
-      background: #020617;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.6);
-    }
-
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transform: scaleX(-1); /* mirror untuk selfie */
-      background: #000;
-    }
-
-    .frame-overlay {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-    }
-
-    .frame-overlay img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    canvas {
-      display: none;
+      border: 1px dashed rgba(148, 163, 184, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 0.85rem;
+      color: #9ca3af;
+      padding: 12px;
+      box-sizing: border-box;
     }
 
     .controls {
@@ -99,22 +98,6 @@
       transform: scale(0.97);
     }
 
-    .preview-wrapper {
-      margin-top: 12px;
-      max-width: 420px;
-      width: 100%;
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .preview-wrapper img {
-      width: 100%;
-      border-radius: 16px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
-    }
-
     .hint {
       margin-top: 8px;
       font-size: 0.75rem;
@@ -122,140 +105,122 @@
       opacity: 0.7;
       max-width: 420px;
     }
+
+    input[type="file"] {
+      display: none;
+    }
   </style>
 </head>
 <body>
   <h1>Selfie Dengan Rangka Paus 1892</h1>
   <p class="subtitle">
-    Scan QR, buka kamera dan rakam kenangan bersama rangka Paus 1892 di Muzium Marin Labuan.
+    Tekan butang di bawah untuk buka kamera, ambil gambar dan kami akan tambah frame Rangka Paus 1892.
   </p>
 
-  <div class="camera-wrapper">
-    <video id="video" autoplay playsinline muted></video>
-
-    <!-- Overlay frame PNG -->
-    <div class="frame-overlay">
-      <img src="img/frame_paus.png" alt="Frame Rangka Paus 1892">
-    </div>
+  <!-- Kotak placeholder sebelum ada gambar -->
+  <div class="placeholder-box" id="placeholderBox">
+    Tiada gambar lagi. Tekan "Ambil Selfie" untuk buka kamera dan ambil gambar bersama frame.
   </div>
 
-  <canvas id="canvas"></canvas>
-
-  <div class="controls">
-    <button id="captureBtn">📸 Ambil Gambar</button>
-    <button id="switchBtn" class="secondary">🔁 Tukar Kamera</button>
-    <button id="downloadBtn" class="secondary" style="display:none;">⬇️ Muat Turun</button>
-  </div>
-
+  <!-- Preview hasil akhir -->
   <div class="preview-wrapper" id="previewWrapper">
     <img id="previewImage" alt="Selfie dengan Rangka Paus 1892">
   </div>
 
+  <!-- Input fail untuk buka kamera -->
+  <input
+    type="file"
+    id="fileInput"
+    accept="image/*"
+    capture="user"
+  >
+
+  <div class="controls">
+    <button id="captureBtn">📸 Ambil Selfie</button>
+    <button id="downloadBtn" class="secondary" style="display:none;">⬇️ Muat Turun</button>
+  </div>
+
   <p class="hint" id="statusText">
-    Benarkan akses kamera dalam browser. Pegang telefon menegak dan pastikan muka berada di tengah frame.
+    Telefon akan buka aplikasi kamera asal. Ambil gambar, kemudian kami akan tambah frame Rangka Paus 1892 secara automatik.
   </p>
 
+  <canvas id="canvas" style="display:none;"></canvas>
+
   <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
+    const fileInput = document.getElementById('fileInput');
     const captureBtn = document.getElementById('captureBtn');
-    const switchBtn = document.getElementById('switchBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const previewWrapper = document.getElementById('previewWrapper');
     const previewImage = document.getElementById('previewImage');
+    const placeholderBox = document.getElementById('placeholderBox');
     const statusText = document.getElementById('statusText');
+    const canvas = document.getElementById('canvas');
 
-    let currentStream = null;
-    let useFrontCamera = true;
     const frameImage = new Image();
     frameImage.src = 'img/frame_paus.png';
 
-    async function startCamera() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        statusText.textContent = 'Browser tidak sokong kamera. Cuba guna Chrome atau Safari versi terkini.';
-        alert('Peranti anda tidak menyokong akses kamera melalui pelayar.');
-        return;
-      }
-
-      // Hentikan stream lama jika ada
-      if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-      }
-
-      try {
-        statusText.textContent = 'Sedang mengaktifkan kamera...';
-
-        const constraints = {
-          video: {
-            facingMode: useFrontCamera ? 'user' : 'environment'
-          },
-          audio: false
-        };
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        currentStream = stream;
-        video.srcObject = stream;
-
-        video.onloadedmetadata = async () => {
-          try {
-            await video.play();
-            statusText.textContent = 'Kamera aktif. Laraskan posisi muka dalam frame dan tekan "Ambil Gambar".';
-          } catch (e) {
-            statusText.textContent = 'Kamera sedia. Jika nampak ikon play, tekan untuk mula.';
-          }
-        };
-      } catch (err) {
-        console.error(err);
-        alert(
-          'Tidak dapat akses kamera. Pastikan:\n' +
-          '- Laman dibuka dengan HTTPS\n' +
-          '- Izin kamera telah diberikan pada browser\n\n' +
-          'Error: ' + err.message
-        );
-        statusText.textContent = 'Tidak dapat akses kamera: ' + err.message;
-      }
-    }
-
+    // Tekan butang -> buka kamera (melalui input file)
     captureBtn.addEventListener('click', () => {
-      if (!video.videoWidth) {
-        alert('Kamera masih belum bersedia. Tunggu sekejap dan cuba sekali lagi.');
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) {
         return;
       }
 
-      const width = video.videoWidth;
-      const height = video.videoHeight;
-
-      canvas.width = width;
-      canvas.height = height;
-
-      const ctx = canvas.getContext('2d');
-
-      // Lukis video (mirror dibalik semula)
-      ctx.save();
-      ctx.translate(width, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, 0, 0, width, height);
-      ctx.restore();
-
-      // Lukis frame di atas
-      if (frameImage.complete) {
-        ctx.drawImage(frameImage, 0, 0, width, height);
-      } else {
-        frameImage.onload = () => {
-          ctx.drawImage(frameImage, 0, 0, width, height);
-        };
+      // Pastikan ini imej
+      if (!file.type.startsWith('image/')) {
+        alert('Sila pilih fail gambar.');
+        return;
       }
 
+      statusText.textContent = 'Memproses gambar, sila tunggu seketika...';
+
+      const img = new Image();
+      img.onload = () => {
+        // Guna saiz asal gambar sebagai asas canvas
+        const width = img.width;
+        const height = img.height;
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+
+        // Lukis gambar selfie dulu
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Overlay frame di atas
+        if (frameImage.complete) {
+          ctx.drawImage(frameImage, 0, 0, width, height);
+          updatePreview();
+        } else {
+          frameImage.onload = () => {
+            ctx.drawImage(frameImage, 0, 0, width, height);
+            updatePreview();
+          };
+        }
+      };
+
+      img.onerror = () => {
+        alert('Gagal membaca gambar. Cuba sekali lagi.');
+        statusText.textContent = 'Gagal memproses gambar. Cuba sekali lagi.';
+      };
+
+      // Guna object URL untuk load gambar
+      img.src = URL.createObjectURL(file);
+    });
+
+    function updatePreview() {
       const dataUrl = canvas.toDataURL('image/png');
       previewImage.src = dataUrl;
       previewWrapper.style.display = 'flex';
+      placeholderBox.style.display = 'none';
       downloadBtn.style.display = 'inline-flex';
-    });
-
-    switchBtn.addEventListener('click', () => {
-      useFrontCamera = !useFrontCamera;
-      startCamera();
-    });
+      statusText.textContent = 'Gambar siap dengan frame. Anda boleh muat turun atau ambil gambar baru.';
+    }
 
     downloadBtn.addEventListener('click', () => {
       const link = document.createElement('a');
@@ -263,10 +228,6 @@
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       link.download = `selfie-rangka-paus-1892-${timestamp}.png`;
       link.click();
-    });
-
-    document.addEventListener('DOMContentLoaded', () => {
-      startCamera();
     });
   </script>
 </body>

@@ -106,6 +106,24 @@
       max-width: 420px;
     }
 
+    .debug {
+      margin-top: 4px;
+      font-size: 0.7rem;
+      text-align: left;
+      max-width: 420px;
+      width: 100%;
+      white-space: pre-line;
+      opacity: 0.8;
+    }
+
+    .warning {
+      margin-top: 4px;
+      font-size: 0.75rem;
+      text-align: center;
+      max-width: 420px;
+      color: #f97316;
+    }
+
     input[type="file"] {
       display: none;
     }
@@ -141,8 +159,12 @@
   </div>
 
   <p class="hint" id="statusText">
-    Telefon akan buka aplikasi kamera asal. Ambil gambar, kemudian kami akan tambah frame Rangka Paus 1892 secara automatik.
+    Telefon akan buka aplikasi kamera asal. Ambil gambar, kemudian kami akan proses dan tambah frame Rangka Paus 1892.
   </p>
+  <p class="warning" id="frameWarning" style="display:none;">
+    Frame Rangka Paus tidak dijumpai atau gagal dimuatkan. Pastikan fail <code>img/frame_paus.png</code> wujud. Buat masa ini, hanya gambar selfie akan dipaparkan.
+  </p>
+  <div class="debug" id="debugLog"></div>
 
   <canvas id="canvas" style="display:none;"></canvas>
 
@@ -154,33 +176,79 @@
     const previewImage = document.getElementById('previewImage');
     const placeholderBox = document.getElementById('placeholderBox');
     const statusText = document.getElementById('statusText');
+    const frameWarning = document.getElementById('frameWarning');
+    const debugLog = document.getElementById('debugLog');
     const canvas = document.getElementById('canvas');
 
+    // Debug helper
+    function logDebug(msg) {
+      console.log('[DEBUG]', msg);
+      debugLog.textContent += msg + '\n';
+    }
+
     const frameImage = new Image();
+    let frameLoaded = false;
+    let frameFailed = false;
+
+    frameImage.onload = () => {
+      frameLoaded = true;
+      frameFailed = false;
+      frameWarning.style.display = 'none';
+      logDebug('frameImage.onload: Frame berjaya dimuatkan daripada img/frame_paus.png');
+    };
+
+    frameImage.onerror = () => {
+      frameLoaded = false;
+      frameFailed = true;
+      frameWarning.style.display = 'block';
+      logDebug('frameImage.onerror: Gagal memuatkan frame daripada img/frame_paus.png');
+    };
+
+    // Ubah path ini jika perlu
     frameImage.src = 'img/frame_paus.png';
+    logDebug('Memulakan load frame: img/frame_paus.png');
 
     // Tekan butang -> buka kamera (melalui input file)
     captureBtn.addEventListener('click', () => {
+      logDebug('Butang "Ambil Selfie" ditekan. Membuka input file (kamera).');
+      statusText.textContent = 'Kamera dibuka. Ambil gambar dan tekan OK.';
+
+      // Reset input supaya setiap snap baru trigger event change
+      fileInput.value = '';
       fileInput.click();
     });
 
     fileInput.addEventListener('change', (event) => {
       const file = event.target.files[0];
+
       if (!file) {
+        logDebug('fileInput.change: Tiada fail diterima (user mungkin batal).');
+        statusText.textContent = 'Tiada gambar dipilih. Cuba tekan "Ambil Selfie" semula.';
         return;
       }
 
-      // Pastikan ini imej
-      if (!file.type.startsWith('image/')) {
+      logDebug('fileInput.change: Fail diterima.');
+      logDebug('  Nama fail: ' + (file.name || '(tiada nama)'));
+      logDebug('  Saiz (byte): ' + file.size);
+      logDebug('  MIME type: ' + (file.type || '(tiada type)'));
+
+      // Sesetengah device mungkin tak set file.type, jadi kita longgarkan sikit
+      if (file.type && !file.type.startsWith('image/')) {
         alert('Sila pilih fail gambar.');
+        statusText.textContent = 'Fail yang dipilih bukan gambar. Sila cuba semula.';
+        logDebug('fileInput.change: Fail bukan image/*, dibatalkan.');
         return;
       }
 
       statusText.textContent = 'Memproses gambar, sila tunggu seketika...';
+      logDebug('Sedang load imej selfie menggunakan URL.createObjectURL.');
 
       const img = new Image();
+
       img.onload = () => {
-        // Guna saiz asal gambar sebagai asas canvas
+        logDebug('img.onload: Imej selfie berjaya dimuatkan.');
+        logDebug('  Dimensi imej: ' + img.width + ' x ' + img.height);
+
         const width = img.width;
         const height = img.height;
 
@@ -190,43 +258,73 @@
         const ctx = canvas.getContext('2d');
 
         // Lukis gambar selfie dulu
+        ctx.clearRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
+        logDebug('Canvas: Selfie dilukis ke canvas.');
 
-        // Overlay frame di atas
-        if (frameImage.complete) {
+        // Kalau frame berjaya load, overlay di atas
+        if (frameLoaded && !frameFailed) {
           ctx.drawImage(frameImage, 0, 0, width, height);
-          updatePreview();
+          logDebug('Canvas: Frame dilukis di atas selfie.');
         } else {
-          frameImage.onload = () => {
-            ctx.drawImage(frameImage, 0, 0, width, height);
-            updatePreview();
-          };
+          logDebug('Canvas: Frame tidak dilukis (frameLoaded=' + frameLoaded + ', frameFailed=' + frameFailed + ').');
         }
+
+        updatePreview();
       };
 
       img.onerror = () => {
         alert('Gagal membaca gambar. Cuba sekali lagi.');
         statusText.textContent = 'Gagal memproses gambar. Cuba sekali lagi.';
+        logDebug('img.onerror: Gagal load imej selfie daripada fail.');
       };
 
-      // Guna object URL untuk load gambar
-      img.src = URL.createObjectURL(file);
+      try {
+        const objectUrl = URL.createObjectURL(file);
+        logDebug('URL.createObjectURL berjaya. objectUrl: ' + objectUrl);
+        img.src = objectUrl;
+      } catch (e) {
+        logDebug('Ralat semasa URL.createObjectURL: ' + e.message);
+        statusText.textContent = 'Gagal memproses gambar (createObjectURL error).';
+        alert('Gagal memproses gambar. Browser mungkin tidak menyokong fungsi ini.');
+      }
     });
 
     function updatePreview() {
-      const dataUrl = canvas.toDataURL('image/png');
-      previewImage.src = dataUrl;
-      previewWrapper.style.display = 'flex';
-      placeholderBox.style.display = 'none';
-      downloadBtn.style.display = 'inline-flex';
-      statusText.textContent = 'Gambar siap dengan frame. Anda boleh muat turun atau ambil gambar baru.';
+      logDebug('updatePreview: Memulakan penjanaan dataURL daripada canvas.');
+      try {
+        const dataUrl = canvas.toDataURL('image/png');
+        logDebug('updatePreview: dataURL berjaya dijana. Panjang string: ' + dataUrl.length);
+
+        previewImage.src = dataUrl;
+        previewWrapper.style.display = 'flex';
+        placeholderBox.style.display = 'none';
+        downloadBtn.style.display = 'inline-flex';
+
+        if (frameLoaded && !frameFailed) {
+          statusText.textContent = 'Gambar siap dengan frame. Anda boleh muat turun atau ambil gambar baru.';
+        } else {
+          statusText.textContent = 'Gambar siap tanpa frame (frame tidak dimuatkan). Anda masih boleh muat turun atau ambil gambar baru.';
+        }
+
+        logDebug('updatePreview: Preview dikemas kini & butang download diaktifkan.');
+      } catch (e) {
+        logDebug('updatePreview: Ralat semasa canvas.toDataURL - ' + e.message);
+        statusText.textContent = 'Gagal menjana imej akhir daripada canvas.';
+        alert('Gagal menjana imej akhir. Browser mungkin tidak menyokong fungsi ini.');
+      }
     }
 
     downloadBtn.addEventListener('click', () => {
+      if (!previewImage.src) {
+        logDebug('downloadBtn: Tiada src pada previewImage, muat turun dibatalkan.');
+        return;
+      }
       const link = document.createElement('a');
       link.href = previewImage.src;
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       link.download = `selfie-rangka-paus-1892-${timestamp}.png`;
+      logDebug('downloadBtn: Memulakan muat turun fail ' + link.download);
       link.click();
     });
   </script>

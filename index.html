@@ -47,7 +47,7 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transform: scaleX(-1); /* mirror selfie */
+      transform: scaleX(-1);
       display: block;
     }
 
@@ -79,7 +79,7 @@
     .controls {
       margin-top: 12px;
       display: flex;
-      gap: 10px;
+      gap: 14px;
       justify-content: center;
       align-items: center;
     }
@@ -87,15 +87,15 @@
     button {
       border: none;
       border-radius: 999px;
-      padding: 10px;
-      font-size: 1.2rem;
+      padding: 12px;
+      font-size: 1.4rem;
       cursor: pointer;
       font-weight: 600;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-width: 44px;
-      min-height: 44px;
+      min-width: 48px;
+      min-height: 48px;
       background: #38bdf8;
       color: #0f172a;
     }
@@ -107,22 +107,20 @@
     }
 
     button:active {
-      transform: scale(0.95);
+      transform: scale(0.92);
     }
   </style>
 </head>
 <body>
 
   <h1>Selfie Dengan Rangka Paus 1892</h1>
-  <p class="subtitle">Posisikan diri dalam frame, tekan 📸 untuk rakam, 🔄 jika nak ambil semula.</p>
+  <p class="subtitle">Posisikan diri dalam frame, tekan 📸 untuk rakam, atau 🔄 untuk ambil semula.</p>
 
   <div class="camera-wrapper">
     <video id="video" autoplay playsinline></video>
 
-    <!-- Imej hasil tangkapan (gunakan ruang yang sama) -->
-    <img id="previewImage" class="preview-image" alt="Selfie dengan rangka paus">
+    <img id="previewImage" class="preview-image" alt="Selfie">
 
-    <!-- Frame AR -->
     <div class="frame-overlay" id="frameOverlay">
       <img src="img/frame_paus.png" alt="Frame Paus">
     </div>
@@ -132,20 +130,20 @@
 
   <div class="controls">
     <button id="captureBtn" title="Ambil gambar">📸</button>
-    <button id="switchBtn" class="secondary" title="Tukar kamera depan/belakang">🔁</button>
+    <button id="switchBtn" class="secondary" title="Tukar kamera">🔁</button>
     <button id="retakeBtn" class="secondary" title="Ambil semula" style="display:none;">🔄</button>
-    <button id="downloadBtn" class="secondary" title="Muat turun gambar" style="display:none;">⬇️</button>
+    <button id="downloadBtn" class="secondary" title="Muat turun" style="display:none;">⬇️</button>
   </div>
 
   <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const captureBtn = document.getElementById('captureBtn');
-    const switchBtn = document.getElementById('switchBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const retakeBtn = document.getElementById('retakeBtn');
-    const previewImage = document.getElementById('previewImage');
-    const frameOverlay = document.getElementById('frameOverlay');
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const captureBtn = document.getElementById("captureBtn");
+    const switchBtn = document.getElementById("switchBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const retakeBtn = document.getElementById("retakeBtn");
+    const previewImage = document.getElementById("previewImage");
+    const frameOverlay = document.getElementById("frameOverlay");
 
     let stream = null;
     let useFront = true;
@@ -158,101 +156,90 @@
         }
 
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: useFront ? "user" : "environment" },
+          video: {
+            facingMode: useFront ? "user" : "environment",
+            width:  { ideal: 1080 },
+            height: { ideal: 1440 }
+          },
           audio: false
         });
 
         video.srcObject = stream;
-        video.style.display = 'block';
+        video.style.display = "block";
+
       } catch (err) {
-        alert('Tidak dapat akses kamera: ' + err.message);
+        alert("Tidak dapat akses kamera: " + err.message);
       }
     }
 
-    function showPreviewMode(dataUrl) {
+    function showPreview(dataUrl) {
       lastDataUrl = dataUrl;
       previewImage.src = dataUrl;
 
-      // Tunjuk imej statik, sorok video & frame overlay (sebab frame dah baked dalam gambar)
-      previewImage.style.display = 'block';
-      video.style.display = 'none';
-      frameOverlay.style.display = 'none';
+      previewImage.style.display = "block";
+      video.style.display = "none";
+      frameOverlay.style.display = "none";
 
-      // Tukar butang
-      downloadBtn.style.display = 'inline-flex';
-      retakeBtn.style.display = 'inline-flex';
+      downloadBtn.style.display = "inline-flex";
+      retakeBtn.style.display = "inline-flex";
     }
 
-    function showCameraMode() {
-      // Balik ke live camera
-      previewImage.style.display = 'none';
-      video.style.display = 'block';
-      frameOverlay.style.display = 'block';
+    function showCamera() {
+      previewImage.style.display = "none";
+      video.style.display = "block";
+      frameOverlay.style.display = "block";
 
-      downloadBtn.style.display = 'none';
-      retakeBtn.style.display = 'none';
+      downloadBtn.style.display = "none";
+      retakeBtn.style.display = "none";
       lastDataUrl = null;
     }
 
-    captureBtn.addEventListener('click', () => {
-      if (!video.videoWidth || !video.videoHeight) {
-        alert('Kamera masih belum bersedia. Cuba sekali lagi selepas beberapa saat.');
-        return;
-      }
+    captureBtn.addEventListener("click", () => {
+      if (!video.videoWidth) return;
 
-      const width = video.videoWidth;
+      const width  = video.videoWidth;
       const height = video.videoHeight;
 
       canvas.width = width;
       canvas.height = height;
 
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
 
-      // Lukis video (mirror dibalik semula)
       ctx.save();
       ctx.translate(width, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, width, height);
       ctx.restore();
 
-      // Dapatkan imej frame daripada DOM
-      const frameImg = frameOverlay.querySelector('img');
+      const frameImg = frameOverlay.querySelector("img");
       if (frameImg && frameImg.complete) {
         ctx.drawImage(frameImg, 0, 0, width, height);
       }
 
-      const dataUrl = canvas.toDataURL('image/png');
-      showPreviewMode(dataUrl);
+      const dataUrl = canvas.toDataURL("image/png");
+      showPreview(dataUrl);
     });
 
-    switchBtn.addEventListener('click', () => {
-      // Hanya logik tukar kamera bila dalam mod kamera
-      if (previewImage.style.display === 'block') {
-        // Kalau tengah preview, abaikan tukar kamera (atau boleh auto retake + tukar)
-        return;
-      }
+    switchBtn.addEventListener("click", () => {
+      if (previewImage.style.display === "block") return;
       useFront = !useFront;
       startCamera();
     });
 
-    retakeBtn.addEventListener('click', () => {
-      showCameraMode();
+    retakeBtn.addEventListener("click", () => {
+      showCamera();
     });
 
-    downloadBtn.addEventListener('click', () => {
+    downloadBtn.addEventListener("click", () => {
       if (!lastDataUrl) return;
-      const link = document.createElement('a');
-      link.href = lastDataUrl;
-      link.download = 'selfie-paus-1892.png';
-      link.click();
+      const a = document.createElement("a");
+      a.href = lastDataUrl;
+      a.download = "selfie-paus-1892.png";
+      a.click();
     });
 
-    // Mula kamera bila page load
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      startCamera();
-    } else {
-      alert('Peranti anda tidak menyokong akses kamera melalui pelayar.');
-    }
+    if (navigator.mediaDevices?.getUserMedia) startCamera();
+    else alert("Peranti anda tidak menyokong kamera melalui pelayar.");
   </script>
 
 </body>

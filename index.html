@@ -149,6 +149,7 @@
     let useFront = true;
     let lastDataUrl = null;
 
+    // Minta resolusi tinggi, tapi browser akan pilih yang paling dekat
     async function startCamera() {
       try {
         if (stream) {
@@ -195,25 +196,56 @@
     }
 
     captureBtn.addEventListener("click", () => {
-      if (!video.videoWidth) return;
+      if (!video.videoWidth || !video.videoHeight) return;
 
-      const width  = video.videoWidth;
-      const height = video.videoHeight;
+      const videoWidth  = video.videoWidth;
+      const videoHeight = video.videoHeight;
 
-      canvas.width = width;
-      canvas.height = height;
+      const targetRatio = 3 / 4; // lebar:tinggi = 3:4
+
+      let finalWidth, finalHeight;
+      let sx, sy, sw, sh;
+
+      const currentRatio = videoWidth / videoHeight;
+
+      if (currentRatio > targetRatio) {
+        // Video lebih lebar dari 3:4 -> crop kiri/kanan
+        finalHeight = videoHeight;
+        finalWidth  = Math.round(videoHeight * targetRatio);
+        sx = Math.round((videoWidth - finalWidth) / 2);
+        sy = 0;
+        sw = finalWidth;
+        sh = videoHeight;
+      } else {
+        // Video lebih tinggi / sempit -> crop atas/bawah
+        finalWidth  = videoWidth;
+        finalHeight = Math.round(videoWidth / targetRatio);
+        sx = 0;
+        sy = Math.round((videoHeight - finalHeight) / 2);
+        sw = videoWidth;
+        sh = finalHeight;
+      }
+
+      canvas.width = finalWidth;
+      canvas.height = finalHeight;
 
       const ctx = canvas.getContext("2d");
 
+      // Lukis video yang telah di-crop, mirror untuk selfie
       ctx.save();
-      ctx.translate(width, 0);
+      ctx.translate(finalWidth, 0);
       ctx.scale(-1, 1);
-      ctx.drawImage(video, 0, 0, width, height);
+      ctx.drawImage(
+        video,
+        sx, sy, sw, sh,    // sumber (crop dari video)
+        0, 0, finalWidth, finalHeight // destinasi (canvas)
+      );
       ctx.restore();
 
+      // Overlay frame (pastikan frame PNG nisbah 3:4)
       const frameImg = frameOverlay.querySelector("img");
       if (frameImg && frameImg.complete) {
-        ctx.drawImage(frameImg, 0, 0, width, height);
+        ctx.drawImage(frameImg, 0, 0, finalWidth, finalHeight);
       }
 
       const dataUrl = canvas.toDataURL("image/png");
@@ -238,8 +270,11 @@
       a.click();
     });
 
-    if (navigator.mediaDevices?.getUserMedia) startCamera();
-    else alert("Peranti anda tidak menyokong kamera melalui pelayar.");
+    if (navigator.mediaDevices?.getUserMedia) {
+      startCamera();
+    } else {
+      alert("Peranti anda tidak menyokong kamera melalui pelayar.");
+    }
   </script>
 
 </body>

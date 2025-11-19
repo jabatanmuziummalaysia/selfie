@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <title>Selfie Dengan Rangka Paus 1892</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #020817;
+      color: #f9fafb;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 12px;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      font-size: 1.3rem;
+      margin: 8px 0 4px;
+      text-align: center;
+    }
+
+    p.subtitle {
+      font-size: 0.85rem;
+      margin: 0 0 12px;
+      text-align: center;
+      opacity: 0.8;
+    }
+
+    .camera-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      aspect-ratio: 3 / 4;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #020617;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* mirror untuk selfie */
+    }
+
+    .frame-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .frame-overlay img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    canvas {
+      display: none;
+    }
+
+    .controls {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #38bdf8;
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    button.secondary {
+      background: #0f172a;
+      color: #e5e7eb;
+      border: 1px solid #1f2937;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    .preview-wrapper {
+      margin-top: 12px;
+      max-width: 420px;
+      width: 100%;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .preview-wrapper img {
+      width: 100%;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+    }
+
+    .hint {
+      margin-top: 8px;
+      font-size: 0.75rem;
+      text-align: center;
+      opacity: 0.7;
+      max-width: 420px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Selfie Dengan Rangka Paus 1892</h1>
+  <p class="subtitle">
+    Scan QR, buka kamera dan rakam kenangan bersama rangka Paus 1892 di Muzium Marin Labuan.
+  </p>
+
+  <div class="camera-wrapper">
+    <video id="video" autoplay playsinline></video>
+
+    <!-- Overlay frame PNG -->
+    <div class="frame-overlay">
+      <img src="img/frame_paus.png" alt="Frame Rangka Paus 1892">
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <div class="controls">
+    <button id="captureBtn">📸 Ambil Gambar</button>
+    <button id="switchBtn" class="secondary">🔁 Tukar Kamera</button>
+    <button id="downloadBtn" class="secondary" style="display:none;">⬇️ Muat Turun</button>
+  </div>
+
+  <div class="preview-wrapper" id="previewWrapper">
+    <img id="previewImage" alt="Selfie dengan Rangka Paus 1892">
+  </div>
+
+  <p class="hint">
+    Tip: Pegang telefon menegak dan pastikan muka berada dalam kawasan tengah frame untuk hasil terbaik.
+  </p>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const captureBtn = document.getElementById('captureBtn');
+    const switchBtn = document.getElementById('switchBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const previewWrapper = document.getElementById('previewWrapper');
+    const previewImage = document.getElementById('previewImage');
+
+    let currentStream = null;
+    let useFrontCamera = true;
+    const frameImage = new Image();
+    frameImage.src = 'img/frame_paus.png';
+
+    async function startCamera() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+
+      try {
+        const constraints = {
+          video: {
+            facingMode: useFrontCamera ? 'user' : 'environment'
+          },
+          audio: false
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        currentStream = stream;
+        video.srcObject = stream;
+      } catch (err) {
+        alert(
+          'Tidak dapat akses kamera. Sila benarkan akses kamera dalam pelayar.\n\n' +
+          'Error: ' + err.message
+        );
+      }
+    }
+
+    captureBtn.addEventListener('click', () => {
+      if (!video.videoWidth) {
+        alert('Kamera masih belum bersedia. Cuba sekali lagi selepas beberapa saat.');
+        return;
+      }
+
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+
+      // Lukis video (mirror dibalik semula di sini)
+      ctx.save();
+      ctx.translate(width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, width, height);
+      ctx.restore();
+
+      // Overlay frame
+      if (frameImage.complete) {
+        ctx.drawImage(frameImage, 0, 0, width, height);
+      } else {
+        frameImage.onload = () => {
+          ctx.drawImage(frameImage, 0, 0, width, height);
+        };
+      }
+
+      const dataUrl = canvas.toDataURL('image/png');
+      previewImage.src = dataUrl;
+      previewWrapper.style.display = 'flex';
+      downloadBtn.style.display = 'inline-flex';
+    });
+
+    switchBtn.addEventListener('click', () => {
+      useFrontCamera = !useFrontCamera;
+      startCamera();
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      const link = document.createElement('a');
+      link.href = previewImage.src;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      link.download = `selfie-rangka-paus-1892-${timestamp}.png`;
+      link.click();
+    });
+
+    // Mula kamera bila page load
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      startCamera();
+    } else {
+      alert('Peranti anda tidak menyokong akses kamera melalui pelayar.');
+    }
+  </script>
+</body>
+</html>
